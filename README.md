@@ -30,6 +30,61 @@ Generar SVG:
 ./build/uml_engine examples/juego.uml --svg build/juego.svg
 ```
 
+Previsualizar el SVG desde terminal en macOS con Quick Look:
+
+```bash
+./build/uml_engine examples/juego.uml --svg build/juego.svg
+qlmanage -p build/juego.svg
+```
+
+O con Make:
+
+```bash
+make preview
+```
+
+Generar y abrir automaticamente el SVG en macOS:
+
+```bash
+./build/uml_engine examples/juego.uml --svg build/juego.svg --open
+```
+
+Tambien puedes usar:
+
+```bash
+make run
+```
+
+## Ejemplos Incluidos
+
+Juego, basado en el ejemplo del PDF:
+
+```bash
+./build/uml_engine examples/juego.uml --dot build/juego.dot --svg build/juego.svg
+qlmanage -p build/juego.svg
+```
+
+Conectores, muestra herencia, dependencia, agregacion y composicion:
+
+```bash
+./build/uml_engine examples/conectores.uml --dot build/conectores.dot --svg build/conectores.svg
+qlmanage -p build/conectores.svg
+```
+
+Biblioteca, ejemplo con recursos, catalogo, estantes y libros:
+
+```bash
+./build/uml_engine examples/biblioteca.uml --dot build/biblioteca.dot --svg build/biblioteca.svg
+qlmanage -p build/biblioteca.svg
+```
+
+Tienda, ejemplo con clientes, pedidos, pagos y factura:
+
+```bash
+./build/uml_engine examples/tienda.uml --dot build/tienda.dot --svg build/tienda.svg
+qlmanage -p build/tienda.svg
+```
+
 Generar un archivo Graphviz DOT estandar con nodos UML y flechas renderizables:
 
 ```bash
@@ -119,6 +174,6 @@ src/render_dot.c       exportador DOT intermedio con posiciones y puntos
 src/render_svg.c       exportador SVG
 src/render_raylib.c    ventana propia opcional con raylib
 src/main.c             CLI
-examples/juego.uml     ejemplo basado en el PDF
+examples/*.uml         ejemplos de diagramas y tipos de relacion
 tests/duplicados.uml   ejemplo con errores semanticos
 ```

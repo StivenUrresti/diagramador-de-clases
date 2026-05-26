@@ -1,0 +1,72 @@
+Diagrama Biblioteca.
+
+posicion Recurso {
+X=50;
+Y=50;
+}
+
+posicion Libro {
+X=50;
+Y=300;
+}
+
+posicion Biblioteca {
+X=380;
+Y=50;
+}
+
+posicion Estante {
+X=380;
+Y=300;
+}
+
+posicion Catalogo {
+X=700;
+Y=50;
+}
+
+segmento (Libro, Recurso, 120, 300, 120, 180, herencia);
+segmento (Biblioteca, Estante, 450, 180, 450, 300, composicion);
+segmento (Biblioteca, Catalogo, 580, 120, 700, 120, agregacion);
+segmento (Catalogo, Libro, 700, 180, 150, 300, dependencia);
+
+abstracta clase Recurso {
+atributos:
+protegido string codigo;
+protegido string titulo;
+metodos:
+publico string obtener_titulo();
+}
+
+clase Libro hereda Recurso {
+atributos:
+privado string autor;
+privado int paginas;
+metodos:
+publico void prestar();
+publico void devolver();
+}
+
+clase Biblioteca {
+atributos:
+privado string nombre;
+privado string direccion;
+metodos:
+publico void abrir();
+publico void cerrar();
+}
+
+clase Estante composicion Biblioteca {
+atributos:
+privado int numero;
+privado string seccion;
+metodos:
+publico void ubicar(Libro libro);
+}
+
+clase Catalogo agregacion Biblioteca {
+atributos:
+privado int total_recursos;
+metodos:
+publico Libro buscar(string titulo);
+}
