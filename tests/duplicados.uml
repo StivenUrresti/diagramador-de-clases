@@ -1,0 +1,24 @@
+Diagrama Errores.
+
+posicion A {
+X=10;
+Y=10;
+}
+
+posicion B {
+X=10;
+Y=10;
+}
+
+clase A {
+atributos:
+privado int id;
+privado int id;
+metodos:
+publico void id();
+}
+
+clase A {
+atributos:
+metodos:
+}

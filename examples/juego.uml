@@ -1,0 +1,61 @@
+Diagrama Juego.
+
+posicion personaje {
+X=50;
+Y=50;
+}
+
+posicion vaquero {
+X=50;
+Y=300;
+}
+
+posicion juego {
+X=330;
+Y=50;
+}
+
+posicion vaca {
+X=330;
+Y=300;
+}
+
+segmento (personaje, vaquero, 125, 225, 125, 300, herencia);
+segmento (vaca, juego, 405, 300, 405, 225, agregacion);
+
+abstracta clase personaje {
+atributos:
+privado BITMAP bmps;
+privado tupla posicion_actual;
+privado float velocidad;
+privado int estado;
+metodos:
+publico int mover();
+publico void dibujar(BITMAP buf);
+protegido void cambiar_de_estado(int siguiente_estado);
+protegido int detectar_colision();
+}
+
+clase vaquero hereda personaje {
+atributos:
+privado vector direccion;
+privado tupla pos_destino;
+metodos:
+}
+
+clase juego {
+atributos:
+privado int nivel;
+privado long puntuacion;
+privado int cerca_disponible;
+metodos:
+}
+
+clase vaca agregacion juego {
+atributos:
+privado tupla posicion_inicial, posicion_destino;
+publico vaca hermanas;
+publico cerca cercado;
+metodos:
+privado void calcular_sig_destino();
+}

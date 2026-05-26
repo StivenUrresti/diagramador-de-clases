@@ -1,0 +1,178 @@
+#include "uml.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    const char *input_path;
+    const char *dot_path;
+    const char *svg_path;
+    const char *png_path;
+    bool view;
+    bool ascii;
+} CliOptions;
+
+static void print_usage(const char *program) {
+    fprintf(stderr, "Uso: %s archivo.uml [--dot salida.dot] [--svg salida.svg] [--png salida.png] [--view] [--ascii]\n", program);
+}
+
+static bool parse_args(int argc, char **argv, CliOptions *options) {
+    memset(options, 0, sizeof(*options));
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--dot") == 0) {
+            if (i + 1 >= argc) return false;
+            options->dot_path = argv[++i];
+        } else if (strcmp(argv[i], "--svg") == 0) {
+            if (i + 1 >= argc) return false;
+            options->svg_path = argv[++i];
+        } else if (strcmp(argv[i], "--png") == 0) {
+            if (i + 1 >= argc) return false;
+            options->png_path = argv[++i];
+        } else if (strcmp(argv[i], "--view") == 0) {
+            options->view = true;
+        } else if (strcmp(argv[i], "--ascii") == 0) {
+            options->ascii = true;
+        } else if (argv[i][0] == '-') {
+            return false;
+        } else if (options->input_path == NULL) {
+            options->input_path = argv[i];
+        } else {
+            return false;
+        }
+    }
+
+    if (options->input_path == NULL) {
+        return false;
+    }
+
+    if (options->dot_path == NULL && options->svg_path == NULL && options->png_path == NULL && !options->view && !options->ascii) {
+        options->svg_path = "diagrama.svg";
+    }
+
+    if (options->png_path != NULL) {
+        options->view = true;
+    }
+
+    return true;
+}
+
+static char *read_input_file(const char *path, ErrorList *errors) {
+    FILE *file = fopen(path, "rb");
+    if (file == NULL) {
+        error_add(errors, 0, 0, "no se pudo abrir '%s'", path);
+        return NULL;
+    }
+
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        error_add(errors, 0, 0, "no se pudo leer '%s'", path);
+        return NULL;
+    }
+
+    long size = ftell(file);
+    if (size < 0) {
+        fclose(file);
+        error_add(errors, 0, 0, "no se pudo obtener el tamano de '%s'", path);
+        return NULL;
+    }
+    rewind(file);
+
+    char *buffer = malloc((size_t)size + 1);
+    if (buffer == NULL) {
+        fclose(file);
+        error_add(errors, 0, 0, "memoria insuficiente para leer '%s'", path);
+        return NULL;
+    }
+
+    size_t read = fread(buffer, 1, (size_t)size, file);
+    fclose(file);
+    buffer[read] = '\0';
+    return buffer;
+}
+
+int main(int argc, char **argv) {
+    CliOptions options;
+    if (!parse_args(argc, argv, &options)) {
+        print_usage(argv[0]);
+        return 2;
+    }
+
+    ErrorList errors;
+    error_list_init(&errors);
+
+    char *source = read_input_file(options.input_path, &errors);
+    if (source == NULL) {
+        error_print_all(&errors);
+        return 1;
+    }
+
+    Diagram *diagram = calloc(1, sizeof(*diagram));
+    Layout *layout = calloc(1, sizeof(*layout));
+    if (diagram == NULL || layout == NULL) {
+        free(source);
+        free(diagram);
+        free(layout);
+        error_add(&errors, 0, 0, "memoria insuficiente para crear el diagrama");
+        error_print_all(&errors);
+        return 1;
+    }
+
+    bool ok = parse_diagram(source, diagram, &errors);
+    free(source);
+
+    if (ok) {
+        ok = analyze_semantics(diagram, &errors);
+    }
+
+    if (!ok) {
+        error_print_all(&errors);
+        free(diagram);
+        free(layout);
+        return 1;
+    }
+
+    compute_layout(diagram, layout);
+
+    if (options.ascii) {
+        render_ascii(diagram, layout);
+    }
+
+    if (options.dot_path != NULL && !render_dot(diagram, layout, options.dot_path, &errors)) {
+        error_print_all(&errors);
+        free(diagram);
+        free(layout);
+        return 1;
+    }
+
+    if (options.svg_path != NULL && !render_svg(diagram, layout, options.svg_path, &errors)) {
+        error_print_all(&errors);
+        free(diagram);
+        free(layout);
+        return 1;
+    }
+
+    if (options.view && !render_raylib_view(diagram, layout, options.png_path, &errors)) {
+        error_print_all(&errors);
+        if (options.png_path != NULL && options.svg_path == NULL) {
+            free(diagram);
+            free(layout);
+            return 1;
+        }
+    }
+
+    if (options.dot_path != NULL) {
+        printf("DOT generado: %s\n", options.dot_path);
+    }
+    if (options.svg_path != NULL) {
+        printf("SVG generado: %s\n", options.svg_path);
+    }
+    if (options.png_path != NULL) {
+        printf("PNG solicitado: %s\n", options.png_path);
+    }
+
+    free(diagram);
+    free(layout);
+    return 0;
+}
