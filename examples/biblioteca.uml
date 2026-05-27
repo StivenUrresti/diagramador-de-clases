@@ -25,10 +25,10 @@ X=700;
 Y=50;
 }
 
-segmento (Libro, Recurso, 120, 300, 120, 180, herencia);
-segmento (Biblioteca, Estante, 450, 180, 450, 300, composicion);
-segmento (Biblioteca, Catalogo, 580, 120, 700, 120, agregacion);
-segmento (Catalogo, Libro, 700, 180, 150, 300, dependencia);
+segmento (Libro, Recurso, 129, 244, 129, 200, 161, 200, 161, 145, herencia);
+segmento (Estante, Biblioteca, 501, 244, 501, 200, 465, 200, 465, 164, composicion);
+segmento (Catalogo, Biblioteca, 720, 102, 720, 165, 558, 165, 465, 165, 465, 164, agregacion);
+segmento (Catalogo, Libro, 720, 126, 720, 400, 129, 400, 129, 368, dependencia);
 
 abstracta clase Recurso {
 atributos:

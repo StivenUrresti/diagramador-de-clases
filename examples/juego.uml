@@ -20,8 +20,8 @@ X=330;
 Y=300;
 }
 
-segmento (personaje, vaquero, 125, 225, 125, 300, herencia);
-segmento (vaca, juego, 405, 300, 405, 225, agregacion);
+segmento (vaquero, personaje, 137, 339, 137, 300, 177, 300, 177, 259, herencia);
+segmento (vaca, juego, 541, 339, 541, 290, 513, 290, 513, 161, agregacion);
 
 abstracta clase personaje {
 atributos:

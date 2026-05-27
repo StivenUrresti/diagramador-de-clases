@@ -41,6 +41,17 @@ static void add_point(Point *points, size_t *count, size_t max_points, Point poi
 }
 
 size_t compute_relation_points(const Diagram *diagram, const Layout *layout, const RelationDecl *relation, Point *points, size_t max_points) {
+    if (relation->point_count >= 2 && max_points > 0) {
+        size_t count = relation->point_count;
+        if (count > max_points) {
+            count = max_points;
+        }
+        for (size_t i = 0; i < count; i++) {
+            points[i] = relation->points[i];
+        }
+        return count;
+    }
+
     int from = class_index(diagram, relation->from);
     int to = class_index(diagram, relation->to);
     if (from < 0 || to < 0 || max_points == 0) {

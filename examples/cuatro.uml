@@ -1,0 +1,60 @@
+Diagrama Cuatro.
+
+posicion Fuente {
+X=80;
+Y=50;
+}
+
+posicion Recto {
+X=80;
+Y=280;
+}
+
+posicion Pieza {
+X=80;
+Y=510;
+}
+
+posicion Puente {
+X=420;
+Y=280;
+}
+
+segmento (Recto, Fuente, 125, 225, 125, 200, 141, 200, 141, 145, herencia);
+segmento (Pieza, Recto, 121, 429, 121, 390, 125, 390, 125, 349, composicion);
+segmento (Puente, Pieza, 332, 349, 332, 390, 121, 390, 121, 429, agregacion);
+segmento (Puente, Recto, 332, 287, 332, 200, 210, 200, 210, 225, dependencia);
+
+abstracta clase Fuente {
+atributos:
+protegido int id;
+protegido string nombre;
+metodos:
+publico string describir();
+}
+
+clase Recto hereda Fuente {
+atributos:
+privado float valor;
+privado bool activo;
+metodos:
+publico void iniciar();
+publico void detener();
+}
+
+clase Pieza composicion Recto {
+atributos:
+privado string codigo;
+privado int cantidad;
+metodos:
+publico void montar();
+}
+
+clase Puente agregacion Pieza {
+atributos:
+privado string origen;
+privado string destino;
+metodos:
+publico void enlazar();
+publico void desconectar();
+}

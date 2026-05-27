@@ -64,11 +64,11 @@ Juego, basado en el ejemplo del PDF:
 qlmanage -p build/juego.svg
 ```
 
-Conectores, muestra herencia, dependencia, agregacion y composicion:
+Cuatro, diagrama minimo con cuatro clases y los cuatro tipos de relacion:
 
 ```bash
-./build/uml_engine examples/conectores.uml --dot build/conectores.dot --svg build/conectores.svg
-qlmanage -p build/conectores.svg
+./build/uml_engine examples/cuatro.uml --dot build/cuatro.dot --svg build/cuatro.svg
+qlmanage -p build/cuatro.svg
 ```
 
 Biblioteca, ejemplo con recursos, catalogo, estantes y libros:
@@ -76,13 +76,6 @@ Biblioteca, ejemplo con recursos, catalogo, estantes y libros:
 ```bash
 ./build/uml_engine examples/biblioteca.uml --dot build/biblioteca.dot --svg build/biblioteca.svg
 qlmanage -p build/biblioteca.svg
-```
-
-Tienda, ejemplo con clientes, pedidos, pagos y factura:
-
-```bash
-./build/uml_engine examples/tienda.uml --dot build/tienda.dot --svg build/tienda.svg
-qlmanage -p build/tienda.svg
 ```
 
 Generar un archivo Graphviz DOT estandar con nodos UML y flechas renderizables:
