@@ -1,0 +1,66 @@
+Diagrama CoordsMalas.
+
+posicion Alpha {
+X=40;
+Y=40;
+}
+
+posicion Beta {
+X=40;
+Y=40;
+}
+
+posicion Gamma {
+X=45;
+Y=295;
+}
+
+posicion Delta {
+X=420;
+Y=295;
+}
+
+posicion Epsilon {
+X=420;
+Y=520;
+}
+
+segmento (Beta, Alpha, herencia);
+segmento (Gamma, Alpha, composicion);
+segmento (Delta, Gamma, agregacion);
+segmento (Epsilon, Delta, dependencia);
+
+abstracta clase Alpha {
+atributos:
+protegido int id;
+metodos:
+publico string nombre();
+}
+
+clase Beta hereda Alpha {
+atributos:
+privado int valor;
+metodos:
+publico void iniciar();
+}
+
+clase Gamma composicion Alpha {
+atributos:
+privado string codigo;
+metodos:
+publico void montar();
+}
+
+clase Delta agregacion Gamma {
+atributos:
+privado string origen;
+metodos:
+publico void enlazar();
+}
+
+clase Epsilon {
+atributos:
+privado bool activo;
+metodos:
+publico void detener();
+}

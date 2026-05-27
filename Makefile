@@ -3,12 +3,13 @@ CFLAGS ?= -std=c11 -Wall -Wextra -Wpedantic -Iinclude
 LDFLAGS ?= -lm
 BUILD_DIR := build
 TARGET := $(BUILD_DIR)/uml_engine
+FIX_COORDS := $(BUILD_DIR)/fix_coords
 SOURCES := src/main.c src/parser.c src/semantic.c src/layout.c src/route.c src/render_dot.c src/render_svg.c src/render_raylib.c src/util.c
 OBJECTS := $(SOURCES:src/%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean run preview diagram test raylib
+.PHONY: all clean run preview diagram test raylib fix-coords
 
-all: $(TARGET)
+all: $(TARGET) $(FIX_COORDS)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -18,6 +19,9 @@ $(BUILD_DIR)/%.o: src/%.c include/uml.h | $(BUILD_DIR)
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
+
+$(FIX_COORDS): src/fix_coords.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ $<
 
 raylib:
 	$(MAKE) clean
