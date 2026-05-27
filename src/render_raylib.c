@@ -21,20 +21,11 @@ static Vector2 center_box(const ClassBox *box) {
 }
 
 static void get_relation_points(const Diagram *diagram, const Layout *layout, const RelationDecl *relation, Vector2 *points, size_t *count) {
-    if (relation->point_count > 0) {
-        *count = relation->point_count;
-        for (size_t i = 0; i < relation->point_count; i++) {
-            points[i] = (Vector2){(float)relation->points[i].x, (float)relation->points[i].y};
-        }
-        return;
-    }
-
-    int from = class_index(diagram, relation->from);
-    int to = class_index(diagram, relation->to);
-    *count = 0;
-    if (from >= 0 && to >= 0) {
-        points[(*count)++] = center_box(&layout->boxes[from]);
-        points[(*count)++] = center_box(&layout->boxes[to]);
+    Point routed[UML_MAX_POINTS];
+    size_t routed_count = compute_relation_points(diagram, layout, relation, routed, UML_MAX_POINTS);
+    *count = routed_count;
+    for (size_t i = 0; i < routed_count; i++) {
+        points[i] = (Vector2){(float)routed[i].x, (float)routed[i].y};
     }
 }
 

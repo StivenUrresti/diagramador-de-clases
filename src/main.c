@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 typedef struct {
     const char *input_path;
@@ -16,6 +17,73 @@ typedef struct {
 
 static void print_usage(const char *program) {
     fprintf(stderr, "Uso: %s archivo.uml [--dot salida.dot] [--svg salida.svg] [--png salida.png] [--view] [--ascii] [--open]\n", program);
+    fprintf(stderr, "Sin --dot ni --svg genera build/<nombre>.dot y build/<nombre>.svg\n");
+}
+
+static const char *path_basename(const char *path) {
+    const char *base = path;
+    const char *slash = strrchr(path, '/');
+    const char *backslash = strrchr(path, '\\');
+
+    if (slash != NULL && slash + 1 > base) {
+        base = slash + 1;
+    }
+    if (backslash != NULL && backslash + 1 > base) {
+        base = backslash + 1;
+    }
+    return base;
+}
+
+static bool derive_stem(const char *input_path, char *stem, size_t stem_size) {
+    const char *base = path_basename(input_path);
+    const char *dot = strrchr(base, '.');
+    size_t len = dot != NULL ? (size_t)(dot - base) : strlen(base);
+
+    if (len == 0 || len >= stem_size) {
+        return false;
+    }
+
+    memcpy(stem, base, len);
+    stem[len] = '\0';
+    return true;
+}
+
+static bool ensure_build_dir(void) {
+    struct stat info;
+    if (stat("build", &info) == 0) {
+        return S_ISDIR(info.st_mode);
+    }
+    return mkdir("build", 0755) == 0;
+}
+
+static bool apply_default_outputs(const char *input_path, char *dot_path, size_t dot_size, char *svg_path, size_t svg_size, CliOptions *options) {
+    char stem[256];
+
+    if (!derive_stem(input_path, stem, sizeof(stem))) {
+        return false;
+    }
+    if (!ensure_build_dir()) {
+        return false;
+    }
+    {
+        int dot_written = snprintf(dot_path, dot_size, "build/%s.dot", stem);
+        int svg_written = snprintf(svg_path, svg_size, "build/%s.svg", stem);
+        if (dot_written < 0 || (size_t)dot_written >= dot_size || svg_written < 0 || (size_t)svg_written >= svg_size) {
+            return false;
+        }
+    }
+
+    if (options->dot_path == NULL && options->svg_path == NULL && options->png_path == NULL && !options->view && !options->ascii) {
+        options->dot_path = dot_path;
+        options->svg_path = svg_path;
+    } else if (options->open_svg && options->svg_path == NULL) {
+        options->svg_path = svg_path;
+        if (options->dot_path == NULL) {
+            options->dot_path = dot_path;
+        }
+    }
+
+    return true;
 }
 
 static bool parse_args(int argc, char **argv, CliOptions *options) {
@@ -50,16 +118,8 @@ static bool parse_args(int argc, char **argv, CliOptions *options) {
         return false;
     }
 
-    if (options->dot_path == NULL && options->svg_path == NULL && options->png_path == NULL && !options->view && !options->ascii) {
-        options->svg_path = "diagrama.svg";
-    }
-
     if (options->png_path != NULL) {
         options->view = true;
-    }
-
-    if (options->open_svg && options->svg_path == NULL) {
-        options->svg_path = "diagrama.svg";
     }
 
     return true;
@@ -184,7 +244,16 @@ static char *read_input_file(const char *path, ErrorList *errors) {
 
 int main(int argc, char **argv) {
     CliOptions options;
+    char default_dot_path[512];
+    char default_svg_path[512];
+
     if (!parse_args(argc, argv, &options)) {
+        print_usage(argv[0]);
+        return 2;
+    }
+
+    if (!apply_default_outputs(options.input_path, default_dot_path, sizeof(default_dot_path), default_svg_path, sizeof(default_svg_path), &options)) {
+        fprintf(stderr, "No se pudieron derivar rutas de salida para '%s'\n", options.input_path);
         print_usage(argv[0]);
         return 2;
     }
@@ -227,6 +296,7 @@ int main(int argc, char **argv) {
     }
 
     compute_layout(diagram, layout);
+    plan_routes(diagram, layout);
 
     if (options.ascii) {
         render_ascii(diagram, layout);

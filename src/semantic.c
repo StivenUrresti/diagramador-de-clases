@@ -136,9 +136,6 @@ bool analyze_semantics(Diagram *diagram, ErrorList *errors) {
         if (diagram_find_class(diagram, segment->to) == NULL) {
             error_add(errors, segment->line, segment->column, "segmento referencia clase destino inexistente '%s'", segment->to);
         }
-        if (segment->point_count < 2) {
-            error_add(errors, segment->line, segment->column, "segmento entre '%s' y '%s' debe tener al menos dos puntos", segment->from, segment->to);
-        }
     }
 
     for (size_t i = 0; i < diagram->class_count; i++) {

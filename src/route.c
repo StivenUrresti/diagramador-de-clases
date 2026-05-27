@@ -40,6 +40,361 @@ static void add_point(Point *points, size_t *count, size_t max_points, Point poi
     }
 }
 
+static bool segment_crosses_box(int x1, int y1, int x2, int y2, const ClassBox *box, int pad) {
+    int left = box->x + pad;
+    int right = box->x + box->width - pad;
+    int top = box->y + pad;
+    int bottom = box->y + box->height - pad;
+
+    if (y1 == y2) {
+        if (y1 <= top || y1 >= bottom) {
+            return false;
+        }
+        int minx = x1 < x2 ? x1 : x2;
+        int maxx = x1 > x2 ? x1 : x2;
+        return maxx > left && minx < right;
+    }
+
+    if (x1 == x2) {
+        if (x1 <= left || x1 >= right) {
+            return false;
+        }
+        int miny = y1 < y2 ? y1 : y2;
+        int maxy = y1 > y2 ? y1 : y2;
+        return maxy > top && miny < bottom;
+    }
+
+    return false;
+}
+
+static bool path_hits_boxes_count(const Point *points, size_t count, const Layout *layout, size_t box_count, int from_idx, int to_idx) {
+    for (size_t i = 1; i < count; i++) {
+        for (size_t bi = 0; bi < box_count; bi++) {
+            const ClassBox *box = &layout->boxes[bi];
+            if (box->width <= 0 || box->height <= 0) {
+                continue;
+            }
+            if ((int)bi == from_idx || (int)bi == to_idx) {
+                continue;
+            }
+            if (segment_crosses_box(points[i - 1].x, points[i - 1].y, points[i].x, points[i].y, box, 2)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static void pick_anchors(const ClassBox *from, const ClassBox *to, Point *start, Point *end) {
+    int fcx = from->x + from->width / 2;
+    int fcy = from->y + from->height / 2;
+    int tcx = to->x + to->width / 2;
+    int tcy = to->y + to->height / 2;
+    int dx = tcx - fcx;
+    int dy = tcy - fcy;
+
+    if (dy < -16) {
+        *start = (Point){fcx, from->y};
+        *end = (Point){tcx, to->y + to->height};
+    } else if (dy > 16) {
+        *start = (Point){fcx, from->y + from->height};
+        *end = (Point){tcx, to->y};
+    } else if (dx > 0) {
+        *start = (Point){from->x + from->width, fcy};
+        *end = (Point){to->x, tcy};
+    } else {
+        *start = (Point){from->x, fcy};
+        *end = (Point){to->x + to->width, tcy};
+    }
+}
+
+static void append_hvh(Point *points, size_t *count, size_t max_points, Point start, Point end, int mid_y) {
+    *count = 0;
+    add_point(points, count, max_points, start);
+    if (start.y != mid_y) {
+        add_point(points, count, max_points, (Point){start.x, mid_y});
+    }
+    if (end.x != start.x) {
+        add_point(points, count, max_points, (Point){end.x, mid_y});
+    }
+    if (end.y != mid_y || end.x != start.x) {
+        add_point(points, count, max_points, end);
+    }
+}
+
+static void append_lvl(Point *points, size_t *count, size_t max_points, Point start, Point end, int mid_x) {
+    *count = 0;
+    add_point(points, count, max_points, start);
+    if (start.x != mid_x) {
+        add_point(points, count, max_points, (Point){mid_x, start.y});
+    }
+    if (end.y != start.y) {
+        add_point(points, count, max_points, (Point){mid_x, end.y});
+    }
+    if (end.x != mid_x || end.y != start.y) {
+        add_point(points, count, max_points, end);
+    }
+}
+
+static int min_box_left(const Layout *layout, size_t box_count) {
+    int value = layout->boxes[0].x;
+    for (size_t i = 1; i < box_count; i++) {
+        if (layout->boxes[i].x < value) {
+            value = layout->boxes[i].x;
+        }
+    }
+    return value;
+}
+
+static int max_box_right(const Layout *layout, size_t box_count) {
+    const ClassBox *box = &layout->boxes[0];
+    int value = box->x + box->width;
+    for (size_t i = 1; i < box_count; i++) {
+        box = &layout->boxes[i];
+        int right = box->x + box->width;
+        if (right > value) {
+            value = right;
+        }
+    }
+    return value;
+}
+
+static bool boxes_share_column(const ClassBox *from, const ClassBox *to) {
+    int left = from->x > to->x ? to->x : from->x;
+    int right_from = from->x + from->width;
+    int right_to = to->x + to->width;
+    int right = right_from < right_to ? right_to : right_from;
+    return (right - left) <= (from->width + to->width) / 2 + 20;
+}
+
+static bool channel_y_taken(const int *used, size_t used_count, int y) {
+    for (size_t i = 0; i < used_count; i++) {
+        if (abs(used[i] - y) < 12) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void remember_channel_y(int *used, size_t *used_count, size_t max_used, int y) {
+    if (*used_count < max_used && !channel_y_taken(used, *used_count, y)) {
+        used[(*used_count)++] = y;
+    }
+}
+
+static void route_same_column(const ClassBox *from, const ClassBox *to, int lane, Point *points, size_t *count) {
+    int aligned = abs(from->x - to->x) <= 8;
+    int from_cx = from->x + from->width / 2;
+    int to_cx = to->x + to->width / 2;
+    int spine = aligned ? ((from_cx + to_cx) / 2) : from->x + 18 + (lane % 3) * 10;
+    Point start;
+    Point end;
+
+    *count = 0;
+    if (aligned) {
+        if (to->y + to->height <= from->y) {
+            start = (Point){spine, from->y};
+            end = (Point){spine, to->y + to->height};
+        } else {
+            start = (Point){spine, from->y + from->height};
+            end = (Point){spine, to->y};
+        }
+        add_point(points, count, UML_MAX_POINTS, start);
+        add_point(points, count, UML_MAX_POINTS, end);
+        return;
+    }
+
+    if (to->y + to->height <= from->y) {
+        start = (Point){from_cx, from->y};
+        end = (Point){to_cx, to->y + to->height};
+    } else {
+        start = (Point){from_cx, from->y + from->height};
+        end = (Point){to_cx, to->y};
+    }
+
+    add_point(points, count, UML_MAX_POINTS, start);
+    if (spine != start.x) {
+        add_point(points, count, UML_MAX_POINTS, (Point){spine, start.y});
+    }
+    if (spine != end.x || start.y != end.y) {
+        add_point(points, count, UML_MAX_POINTS, (Point){spine, end.y});
+    }
+    if (end.x != spine || end.y != start.y) {
+        add_point(points, count, UML_MAX_POINTS, end);
+    }
+}
+
+static void append_hv_h_margin(const ClassBox *from, const ClassBox *to, int margin_x, Point *points, size_t *count) {
+    Point start = {from->x + from->width / 2, from->y + from->height};
+    Point end = {to->x + to->width / 2, to->y};
+    *count = 0;
+    add_point(points, count, UML_MAX_POINTS, start);
+    add_point(points, count, UML_MAX_POINTS, (Point){margin_x, start.y});
+    add_point(points, count, UML_MAX_POINTS, (Point){margin_x, end.y});
+    add_point(points, count, UML_MAX_POINTS, end);
+}
+
+static void build_route(const ClassBox *from, const ClassBox *to, const Layout *layout, size_t box_count, int from_idx, int to_idx, int lane, const int *used_channels, size_t used_channel_count, Point *points, size_t *count) {
+    Point start;
+    Point end;
+    int fcx = from->x + from->width / 2;
+    int fcy = from->y + from->height / 2;
+    int tcx = to->x + to->width / 2;
+    int tcy = to->y + to->height / 2;
+    int dx = tcx - fcx;
+    int dy = tcy - fcy;
+
+    Point candidate[UML_MAX_POINTS];
+    size_t candidate_count = 0;
+    int y_options[6];
+    int x_options[4];
+    size_t y_option_count = 0;
+    size_t x_option_count = 0;
+
+    if (boxes_share_column(from, to)) {
+        route_same_column(from, to, lane, points, count);
+        return;
+    }
+
+    if (to->x + to->width < from->x) {
+        int margin = max_box_right(layout, box_count) + 18 + lane;
+        append_hv_h_margin(from, to, margin, points, count);
+        if (*count >= 2 && !path_hits_boxes_count(points, *count, layout, box_count, from_idx, to_idx)) {
+            return;
+        }
+    }
+
+    if (abs(dy) <= 20 && abs(dx) > 24) {
+        int below = (from->y + from->height > to->y + to->height ? from->y + from->height : to->y + to->height) + 16 + lane;
+        int above = (from->y < to->y ? from->y : to->y) - 16 - lane;
+        if (channel_y_taken(used_channels, used_channel_count, below)) {
+            below += 18;
+        }
+        if (channel_y_taken(used_channels, used_channel_count, above)) {
+            above -= 18;
+        }
+
+        if (dx < 0) {
+            start = (Point){from->x, fcy};
+            end = (Point){to->x + to->width, tcy};
+        } else {
+            start = (Point){from->x + from->width, fcy};
+            end = (Point){to->x, tcy};
+        }
+
+        append_hvh(candidate, &candidate_count, UML_MAX_POINTS, start, end, above);
+        if (candidate_count >= 2 && !path_hits_boxes_count(candidate, candidate_count, layout, box_count, from_idx, to_idx)) {
+            *count = candidate_count;
+            for (size_t i = 0; i < candidate_count; i++) {
+                points[i] = candidate[i];
+            }
+            return;
+        }
+
+        append_hvh(candidate, &candidate_count, UML_MAX_POINTS, start, end, below);
+        if (candidate_count >= 2 && !path_hits_boxes_count(candidate, candidate_count, layout, box_count, from_idx, to_idx)) {
+            *count = candidate_count;
+            for (size_t i = 0; i < candidate_count; i++) {
+                points[i] = candidate[i];
+            }
+            return;
+        }
+    }
+
+    pick_anchors(from, to, &start, &end);
+
+    y_options[y_option_count++] = (start.y + end.y) / 2;
+    y_options[y_option_count++] = from->y + from->height + 14 + lane;
+    y_options[y_option_count++] = to->y + to->height + 14 + lane;
+    y_options[y_option_count++] = from->y - 14 - lane;
+    y_options[y_option_count++] = to->y - 14 - lane;
+    y_options[y_option_count++] = start.y + ((end.y - start.y) / 3) + (lane / 2);
+
+    x_options[x_option_count++] = min_box_left(layout, box_count) - 16 - lane;
+    x_options[x_option_count++] = max_box_right(layout, box_count) + 16 + lane;
+    x_options[x_option_count++] = layout->width - 20 - lane;
+    x_options[x_option_count++] = 12 + lane;
+
+    for (size_t yi = 0; yi < y_option_count; yi++) {
+        if (channel_y_taken(used_channels, used_channel_count, y_options[yi])) {
+            continue;
+        }
+        append_hvh(candidate, &candidate_count, UML_MAX_POINTS, start, end, y_options[yi]);
+        if (candidate_count >= 2 && !path_hits_boxes_count(candidate, candidate_count, layout, box_count, from_idx, to_idx)) {
+            *count = candidate_count;
+            for (size_t i = 0; i < candidate_count; i++) {
+                points[i] = candidate[i];
+            }
+            return;
+        }
+    }
+
+    if (to->x + to->width < from->x || from->x + from->width < to->x) {
+        int margin = to->x > from->x
+            ? max_box_right(layout, box_count) + 18 + lane
+            : min_box_left(layout, box_count) - 18 - lane;
+        pick_anchors(from, to, &start, &end);
+        append_lvl(candidate, &candidate_count, UML_MAX_POINTS, start, end, margin);
+        if (candidate_count >= 2 && !path_hits_boxes_count(candidate, candidate_count, layout, box_count, from_idx, to_idx)) {
+            *count = candidate_count;
+            for (size_t i = 0; i < candidate_count; i++) {
+                points[i] = candidate[i];
+            }
+            return;
+        }
+    }
+
+    for (size_t xi = 0; xi < x_option_count; xi++) {
+        append_lvl(candidate, &candidate_count, UML_MAX_POINTS, start, end, x_options[xi]);
+        if (candidate_count >= 2 && !path_hits_boxes_count(candidate, candidate_count, layout, box_count, from_idx, to_idx)) {
+            *count = candidate_count;
+            for (size_t i = 0; i < candidate_count; i++) {
+                points[i] = candidate[i];
+            }
+            return;
+        }
+    }
+
+    append_hvh(candidate, &candidate_count, UML_MAX_POINTS, start, end, (start.y + end.y) / 2);
+    *count = candidate_count;
+    for (size_t i = 0; i < candidate_count; i++) {
+        points[i] = candidate[i];
+    }
+}
+
+void plan_routes(Diagram *diagram, const Layout *layout) {
+    size_t box_count = diagram->class_count;
+    int used_channels[UML_MAX_RELATIONS];
+    size_t used_channel_count = 0;
+
+    for (size_t r = 0; r < diagram->relation_count; r++) {
+        RelationDecl *relation = &diagram->relations[r];
+        int from_idx = class_index(diagram, relation->from);
+        int to_idx = class_index(diagram, relation->to);
+        if (from_idx < 0 || to_idx < 0) {
+            relation->point_count = 0;
+            continue;
+        }
+
+        Point planned[UML_MAX_POINTS];
+        size_t planned_count = 0;
+        build_route(&layout->boxes[from_idx], &layout->boxes[to_idx], layout, box_count, from_idx, to_idx, (int)r * 14, used_channels, used_channel_count, planned, &planned_count);
+
+        relation->point_count = planned_count;
+        for (size_t i = 0; i < planned_count; i++) {
+            relation->points[i] = planned[i];
+        }
+
+        if (planned_count >= 2) {
+            for (size_t i = 1; i < planned_count; i++) {
+                if (planned[i - 1].y == planned[i].y) {
+                    remember_channel_y(used_channels, &used_channel_count, UML_MAX_RELATIONS, planned[i - 1].y);
+                }
+            }
+        }
+    }
+}
+
 size_t compute_relation_points(const Diagram *diagram, const Layout *layout, const RelationDecl *relation, Point *points, size_t max_points) {
     if (relation->point_count >= 2 && max_points > 0) {
         size_t count = relation->point_count;

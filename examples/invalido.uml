@@ -1,0 +1,26 @@
+Diagrama Invalido.
+
+posicion Cliente {
+X=40;
+Y=40;
+}
+
+posicion Pedido {
+X=40;
+Y=40;
+}
+
+segmento (Cliente, Producto, dependencia);
+
+clase Cliente {
+atributos:
+privado int id;
+privado int id;
+metodos:
+publico void id();
+}
+
+clase Cliente {
+atributos:
+metodos:
+}

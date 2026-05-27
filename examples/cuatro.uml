@@ -20,10 +20,10 @@ X=420;
 Y=280;
 }
 
-segmento (Recto, Fuente, 125, 225, 125, 200, 141, 200, 141, 145, herencia);
-segmento (Pieza, Recto, 121, 429, 121, 390, 125, 390, 125, 349, composicion);
-segmento (Puente, Pieza, 332, 349, 332, 390, 121, 390, 121, 429, agregacion);
-segmento (Puente, Recto, 332, 287, 332, 200, 210, 200, 210, 225, dependencia);
+segmento (Recto, Fuente, herencia);
+segmento (Pieza, Recto, composicion);
+segmento (Puente, Pieza, agregacion);
+segmento (Puente, Recto, dependencia);
 
 abstracta clase Fuente {
 atributos:

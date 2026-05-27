@@ -150,10 +150,18 @@ bool render_dot(const Diagram *diagram, const Layout *layout, const char *path, 
         quoted_text(out, relation->from);
         fprintf(out, "\" -> \"");
         quoted_text(out, relation->to);
-        fprintf(out, "\" [label=\"%s\", style=%s, arrowhead=%s];\n",
+        fprintf(out, "\" [label=\"%s\", style=%s, arrowhead=%s",
                 relation_name(relation->type),
                 dot_style(relation->type),
                 dot_arrowhead(relation->type));
+        if (relation->point_count >= 2) {
+            fprintf(out, ", route=\"");
+            for (size_t p = 0; p < relation->point_count; p++) {
+                fprintf(out, "%s%d,%d", p == 0 ? "" : " ", relation->points[p].x, relation->points[p].y);
+            }
+            fprintf(out, "\"");
+        }
+        fprintf(out, "];\n");
     }
 
     fprintf(out, "}\n");

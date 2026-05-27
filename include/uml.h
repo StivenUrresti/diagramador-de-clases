@@ -147,6 +147,7 @@ const char *visibility_symbol(Visibility visibility);
 bool parse_diagram(const char *source, Diagram *diagram, ErrorList *errors);
 bool analyze_semantics(Diagram *diagram, ErrorList *errors);
 void compute_layout(const Diagram *diagram, Layout *layout);
+void plan_routes(Diagram *diagram, const Layout *layout);
 size_t compute_relation_points(const Diagram *diagram, const Layout *layout, const RelationDecl *relation, Point *points, size_t max_points);
 bool render_dot(const Diagram *diagram, const Layout *layout, const char *path, ErrorList *errors);
 bool render_svg(const Diagram *diagram, const Layout *layout, const char *path, ErrorList *errors);

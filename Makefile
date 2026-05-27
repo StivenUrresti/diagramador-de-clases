@@ -6,7 +6,7 @@ TARGET := $(BUILD_DIR)/uml_engine
 SOURCES := src/main.c src/parser.c src/semantic.c src/layout.c src/route.c src/render_dot.c src/render_svg.c src/render_raylib.c src/util.c
 OBJECTS := $(SOURCES:src/%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean run preview test raylib
+.PHONY: all clean run preview diagram test raylib
 
 all: $(TARGET)
 
@@ -24,11 +24,14 @@ raylib:
 	$(MAKE) CFLAGS="$(CFLAGS) -DUSE_RAYLIB $$(pkg-config --cflags raylib 2>/dev/null)" LDFLAGS="$(LDFLAGS) $$(pkg-config --libs raylib 2>/dev/null || echo -lraylib)" $(TARGET)
 
 run: $(TARGET)
-	$(TARGET) examples/juego.uml --dot build/juego.dot --svg build/juego.svg --open
+	$(TARGET) examples/juego.uml --open
 
 preview: $(TARGET)
-	$(TARGET) examples/juego.uml --svg build/juego.svg
-	qlmanage -p build/juego.svg
+	$(TARGET) examples/juego.uml --open
+
+diagram: $(TARGET)
+	@test -n "$(UML)" || (echo "Uso: make diagram UML=examples/cuatro.uml" && exit 1)
+	$(TARGET) $(UML) --open
 
 test: $(TARGET)
 	@$(TARGET) examples/juego.uml --dot build/juego.dot --svg build/juego.svg >/dev/null

@@ -5,7 +5,7 @@ Interprete en C para crear diagramas de clases desde un DSL inspirado en el enun
 El flujo es:
 
 ```txt
-archivo.uml -> lexer/parser -> modelo -> semantica -> DOT intermedio -> SVG / ventana raylib
+archivo.uml -> lexer/parser -> modelo -> semantica -> layout -> plan_routes -> DOT intermedio -> SVG / ventana raylib
 ```
 
 ## Compilar
@@ -24,32 +24,20 @@ make raylib
 
 ## Ejecutar
 
-Generar SVG:
+Un solo comando: toma el `.uml`, genera `build/<nombre>.dot` y `build/<nombre>.svg`, y abre el visor:
 
 ```bash
-./build/uml_engine examples/juego.uml --svg build/juego.svg
+make
+./build/uml_engine examples/cuatro.uml --open
 ```
 
-Previsualizar el SVG desde terminal en macOS con Quick Look:
+Con Make:
 
 ```bash
-./build/uml_engine examples/juego.uml --svg build/juego.svg
-qlmanage -p build/juego.svg
+make diagram UML=examples/cuatro.uml
 ```
 
-O con Make:
-
-```bash
-make preview
-```
-
-Generar y abrir automaticamente el SVG en macOS:
-
-```bash
-./build/uml_engine examples/juego.uml --svg build/juego.svg --open
-```
-
-Tambien puedes usar:
+Tambien puedes usar el ejemplo por defecto:
 
 ```bash
 make run
@@ -60,22 +48,19 @@ make run
 Juego, basado en el ejemplo del PDF:
 
 ```bash
-./build/uml_engine examples/juego.uml --dot build/juego.dot --svg build/juego.svg
-qlmanage -p build/juego.svg
+./build/uml_engine examples/juego.uml --open
 ```
 
 Cuatro, diagrama minimo con cuatro clases y los cuatro tipos de relacion:
 
 ```bash
-./build/uml_engine examples/cuatro.uml --dot build/cuatro.dot --svg build/cuatro.svg
-qlmanage -p build/cuatro.svg
+./build/uml_engine examples/cuatro.uml --open
 ```
 
 Biblioteca, ejemplo con recursos, catalogo, estantes y libros:
 
 ```bash
-./build/uml_engine examples/biblioteca.uml --dot build/biblioteca.dot --svg build/biblioteca.svg
-qlmanage -p build/biblioteca.svg
+./build/uml_engine examples/biblioteca.uml --open
 ```
 
 Generar un archivo Graphviz DOT estandar con nodos UML y flechas renderizables:
@@ -117,7 +102,7 @@ X=entero;
 Y=entero;
 }
 
-segmento (ClaseA, ClaseB, x1, y1, x2, y2, relacion);
+segmento (ClaseA, ClaseB, [x1, y1, x2, y2, ...], relacion);
 
 [abstracta] clase Nombre [relacion ClaseRelacionada] {
 atributos:
@@ -162,7 +147,7 @@ include/uml.h          API y estructuras compartidas
 src/parser.c           lexer y parser recursivo descendente
 src/semantic.c         validaciones y relaciones finales
 src/layout.c           calculo de cajas UML y ASCII
-src/route.c            calcula conectores ortogonales entre cajas
+src/route.c            planifica rutas ortogonales y evita cruces con cajas
 src/render_dot.c       exportador DOT intermedio con posiciones y puntos
 src/render_svg.c       exportador SVG
 src/render_raylib.c    ventana propia opcional con raylib
