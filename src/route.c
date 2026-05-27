@@ -1,5 +1,6 @@
 #include "uml.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -234,6 +235,156 @@ static void append_hv_h_margin(const ClassBox *from, const ClassBox *to, int mar
     add_point(points, count, UML_MAX_POINTS, end);
 }
 
+static void copy_route(Point *dest, size_t *dest_count, const Point *src, size_t src_count) {
+    *dest_count = src_count;
+    for (size_t i = 0; i < src_count; i++) {
+        dest[i] = src[i];
+    }
+}
+
+static void simplify_path(Point *points, size_t *count) {
+    if (*count <= 2) {
+        return;
+    }
+
+    Point simplified[UML_MAX_POINTS];
+    size_t out = 0;
+    simplified[out++] = points[0];
+
+    for (size_t i = 1; i + 1 < *count; i++) {
+        Point prev = simplified[out - 1];
+        Point curr = points[i];
+        Point next = points[i + 1];
+        bool collinear = (prev.x == curr.x && curr.x == next.x) || (prev.y == curr.y && curr.y == next.y);
+        if (!collinear) {
+            simplified[out++] = curr;
+        }
+    }
+
+    simplified[out++] = points[*count - 1];
+    copy_route(points, count, simplified, out);
+}
+
+static int path_score(const Point *points, size_t count, const int *used_channels, size_t used_channel_count) {
+    if (count < 2) {
+        return INT_MAX;
+    }
+
+    int length = 0;
+    int bends = 0;
+    for (size_t i = 1; i < count; i++) {
+        length += abs(points[i].x - points[i - 1].x) + abs(points[i].y - points[i - 1].y);
+        if (i >= 2) {
+            Point a = points[i - 2];
+            Point b = points[i - 1];
+            Point c = points[i];
+            bool ab_horiz = a.y == b.y;
+            bool bc_horiz = b.y == c.y;
+            if (ab_horiz != bc_horiz) {
+                bends++;
+            }
+        }
+        if (points[i - 1].y == points[i].y && channel_y_taken(used_channels, used_channel_count, points[i].y)) {
+            length += 24;
+        }
+    }
+
+    return length + bends * 10;
+}
+
+static bool consider_route(
+    const Point *candidate,
+    size_t candidate_count,
+    const Layout *layout,
+    size_t box_count,
+    int from_idx,
+    int to_idx,
+    const int *used_channels,
+    size_t used_channel_count,
+    Point *best,
+    size_t *best_count,
+    int *best_score) {
+    Point simplified[UML_MAX_POINTS];
+    size_t simplified_count = candidate_count;
+
+    if (candidate_count < 2 || candidate_count > UML_MAX_POINTS) {
+        return false;
+    }
+
+    for (size_t i = 0; i < candidate_count; i++) {
+        simplified[i] = candidate[i];
+    }
+    simplify_path(simplified, &simplified_count);
+    if (simplified_count < 2) {
+        return false;
+    }
+    if (path_hits_boxes_count(simplified, simplified_count, layout, box_count, from_idx, to_idx)) {
+        return false;
+    }
+
+    int score = path_score(simplified, simplified_count, used_channels, used_channel_count);
+    if (*best_count == 0 || score < *best_score) {
+        copy_route(best, best_count, simplified, simplified_count);
+        *best_score = score;
+        return true;
+    }
+
+    return false;
+}
+
+static void route_same_row_direct(const ClassBox *from, const ClassBox *to, Point *points, size_t *count) {
+    int y = (from->y + from->height / 2 + to->y + to->height / 2) / 2;
+    Point start;
+    Point end;
+
+    *count = 0;
+    if (from->x + from->width <= to->x) {
+        start = (Point){from->x + from->width, y};
+        end = (Point){to->x, y};
+    } else if (to->x + to->width <= from->x) {
+        start = (Point){from->x, y};
+        end = (Point){to->x + to->width, y};
+    } else {
+        return;
+    }
+
+    add_point(points, count, UML_MAX_POINTS, start);
+    add_point(points, count, UML_MAX_POINTS, end);
+}
+
+static void route_below_left_corridor(const ClassBox *from, const ClassBox *to, int lane, Point *points, size_t *count) {
+    int corridor = to->x + to->width + ((from->x - (to->x + to->width)) / 2) + (lane % 3) * 5;
+    Point start;
+    Point end = {to->x + to->width / 2, to->y};
+
+    *count = 0;
+    if (to->y >= from->y + from->height) {
+        start = (Point){from->x + from->width / 2, from->y + from->height};
+    } else {
+        start = (Point){from->x, from->y + from->height / 2};
+    }
+
+    add_point(points, count, UML_MAX_POINTS, start);
+    if (start.x != corridor) {
+        add_point(points, count, UML_MAX_POINTS, (Point){corridor, start.y});
+    }
+    if (corridor != end.x || start.y != end.y) {
+        add_point(points, count, UML_MAX_POINTS, (Point){corridor, end.y});
+    }
+    add_point(points, count, UML_MAX_POINTS, end);
+}
+
+static void route_side_corridor(const ClassBox *from, const ClassBox *to, int lane, int use_right_margin, const Layout *layout, size_t box_count, Point *points, size_t *count) {
+    int corridor = use_right_margin
+        ? max_box_right(layout, box_count) + 18 + lane
+        : min_box_left(layout, box_count) - 18 - lane;
+    Point start;
+    Point end;
+
+    pick_anchors(from, to, &start, &end);
+    append_lvl(points, count, UML_MAX_POINTS, start, end, corridor);
+}
+
 static void build_route(const ClassBox *from, const ClassBox *to, const Layout *layout, size_t box_count, int from_idx, int to_idx, int lane, const int *used_channels, size_t used_channel_count, Point *points, size_t *count) {
     Point start;
     Point end;
@@ -246,6 +397,9 @@ static void build_route(const ClassBox *from, const ClassBox *to, const Layout *
 
     Point candidate[UML_MAX_POINTS];
     size_t candidate_count = 0;
+    Point best[UML_MAX_POINTS];
+    size_t best_count = 0;
+    int best_score = 0;
     int y_options[6];
     int x_options[4];
     size_t y_option_count = 0;
@@ -253,18 +407,14 @@ static void build_route(const ClassBox *from, const ClassBox *to, const Layout *
 
     if (boxes_share_column(from, to)) {
         route_same_column(from, to, lane, points, count);
+        simplify_path(points, count);
         return;
     }
 
-    if (to->x + to->width < from->x) {
-        int margin = max_box_right(layout, box_count) + 18 + lane;
-        append_hv_h_margin(from, to, margin, points, count);
-        if (*count >= 2 && !path_hits_boxes_count(points, *count, layout, box_count, from_idx, to_idx)) {
-            return;
-        }
-    }
+    if (abs(dy) <= 24 && abs(dx) > 24) {
+        route_same_row_direct(from, to, candidate, &candidate_count);
+        consider_route(candidate, candidate_count, layout, box_count, from_idx, to_idx, used_channels, used_channel_count, best, &best_count, &best_score);
 
-    if (abs(dy) <= 20 && abs(dx) > 24) {
         int below = (from->y + from->height > to->y + to->height ? from->y + from->height : to->y + to->height) + 16 + lane;
         int above = (from->y < to->y ? from->y : to->y) - 16 - lane;
         if (channel_y_taken(used_channels, used_channel_count, below)) {
@@ -283,22 +433,20 @@ static void build_route(const ClassBox *from, const ClassBox *to, const Layout *
         }
 
         append_hvh(candidate, &candidate_count, UML_MAX_POINTS, start, end, above);
-        if (candidate_count >= 2 && !path_hits_boxes_count(candidate, candidate_count, layout, box_count, from_idx, to_idx)) {
-            *count = candidate_count;
-            for (size_t i = 0; i < candidate_count; i++) {
-                points[i] = candidate[i];
-            }
-            return;
-        }
+        consider_route(candidate, candidate_count, layout, box_count, from_idx, to_idx, used_channels, used_channel_count, best, &best_count, &best_score);
 
         append_hvh(candidate, &candidate_count, UML_MAX_POINTS, start, end, below);
-        if (candidate_count >= 2 && !path_hits_boxes_count(candidate, candidate_count, layout, box_count, from_idx, to_idx)) {
-            *count = candidate_count;
-            for (size_t i = 0; i < candidate_count; i++) {
-                points[i] = candidate[i];
-            }
-            return;
-        }
+        consider_route(candidate, candidate_count, layout, box_count, from_idx, to_idx, used_channels, used_channel_count, best, &best_count, &best_score);
+    }
+
+    if (to->x + to->width < from->x && to->y >= from->y + from->height / 2) {
+        route_below_left_corridor(from, to, lane, candidate, &candidate_count);
+        consider_route(candidate, candidate_count, layout, box_count, from_idx, to_idx, used_channels, used_channel_count, best, &best_count, &best_score);
+    }
+
+    if (to->x + to->width < from->x && to->y + to->height <= from->y) {
+        append_hv_h_margin(from, to, max_box_right(layout, box_count) + 18 + lane, candidate, &candidate_count);
+        consider_route(candidate, candidate_count, layout, box_count, from_idx, to_idx, used_channels, used_channel_count, best, &best_count, &best_score);
     }
 
     pick_anchors(from, to, &start, &end);
@@ -320,46 +468,29 @@ static void build_route(const ClassBox *from, const ClassBox *to, const Layout *
             continue;
         }
         append_hvh(candidate, &candidate_count, UML_MAX_POINTS, start, end, y_options[yi]);
-        if (candidate_count >= 2 && !path_hits_boxes_count(candidate, candidate_count, layout, box_count, from_idx, to_idx)) {
-            *count = candidate_count;
-            for (size_t i = 0; i < candidate_count; i++) {
-                points[i] = candidate[i];
-            }
-            return;
-        }
+        consider_route(candidate, candidate_count, layout, box_count, from_idx, to_idx, used_channels, used_channel_count, best, &best_count, &best_score);
     }
 
     if (to->x + to->width < from->x || from->x + from->width < to->x) {
-        int margin = to->x > from->x
-            ? max_box_right(layout, box_count) + 18 + lane
-            : min_box_left(layout, box_count) - 18 - lane;
-        pick_anchors(from, to, &start, &end);
-        append_lvl(candidate, &candidate_count, UML_MAX_POINTS, start, end, margin);
-        if (candidate_count >= 2 && !path_hits_boxes_count(candidate, candidate_count, layout, box_count, from_idx, to_idx)) {
-            *count = candidate_count;
-            for (size_t i = 0; i < candidate_count; i++) {
-                points[i] = candidate[i];
-            }
-            return;
-        }
+        route_side_corridor(from, to, lane, to->x > from->x, layout, box_count, candidate, &candidate_count);
+        consider_route(candidate, candidate_count, layout, box_count, from_idx, to_idx, used_channels, used_channel_count, best, &best_count, &best_score);
     }
 
     for (size_t xi = 0; xi < x_option_count; xi++) {
         append_lvl(candidate, &candidate_count, UML_MAX_POINTS, start, end, x_options[xi]);
-        if (candidate_count >= 2 && !path_hits_boxes_count(candidate, candidate_count, layout, box_count, from_idx, to_idx)) {
-            *count = candidate_count;
-            for (size_t i = 0; i < candidate_count; i++) {
-                points[i] = candidate[i];
-            }
-            return;
-        }
+        consider_route(candidate, candidate_count, layout, box_count, from_idx, to_idx, used_channels, used_channel_count, best, &best_count, &best_score);
     }
 
     append_hvh(candidate, &candidate_count, UML_MAX_POINTS, start, end, (start.y + end.y) / 2);
-    *count = candidate_count;
-    for (size_t i = 0; i < candidate_count; i++) {
-        points[i] = candidate[i];
+    consider_route(candidate, candidate_count, layout, box_count, from_idx, to_idx, used_channels, used_channel_count, best, &best_count, &best_score);
+
+    if (best_count >= 2) {
+        copy_route(points, count, best, best_count);
+        return;
     }
+
+    append_hvh(candidate, &candidate_count, UML_MAX_POINTS, start, end, (start.y + end.y) / 2);
+    copy_route(points, count, candidate, candidate_count);
 }
 
 void plan_routes(Diagram *diagram, const Layout *layout) {
